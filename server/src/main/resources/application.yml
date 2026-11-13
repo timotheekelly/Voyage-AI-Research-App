@@ -1,0 +1,90 @@
+spring:
+  application:
+    name: research-intelligence
+  config:
+    # Optional local .env file (KEY=value lines) in the working directory; real environment variables win.
+    import: optional:file:.env[.properties]
+  data:
+    mongodb:
+      auto-index-creation: true
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_SIZE:25MB}
+      max-request-size: ${MAX_UPLOAD_SIZE:25MB}
+  jackson:
+    deserialization:
+      # Older API versions must not silently accept settings they do not support.
+      fail-on-unknown-properties: true
+    default-property-inclusion: non_null
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:}
+  mongodb:
+    uri: ${MONGODB_URI}
+    database: ${MONGODB_DATABASE:research_intelligence}
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  security:
+    # jwt (default): validate bearer tokens. dev: authenticate as one seeded user. Use the 'dev' profile locally.
+    mode: jwt
+    dev-user-id: user-001
+  ingestion:
+    chunk-size: 500
+    chunk-overlap: 75
+    max-file-size-bytes: 26214400
+    storage-dir: ${FILE_STORAGE_DIR:./data/uploads}
+    # How often to check whether Atlas has finished embedding documents, and when to give up.
+    readiness-poll-interval: 20s
+    readiness-timeout: 15m
+  retrieval:
+    default-candidate-count: 30
+    default-final-result-count: 5
+    max-candidate-count: 1000
+    text-index: chunk_text_index
+    content-path: content
+    num-candidates-multiplier: 10
+    rerank-model: rerank-2.5
+    vector-weight: 1.0
+    text-weight: 1.0
+    index-check-ttl: 30s
+    configurations:
+      - id: default
+        label: voyage-4, full precision
+        index-name: chunk_vector_index
+        embedding-model: voyage-4
+        quantization: none
+        requires-reindex: false
+        requires-reembedding: false
+        description: The index defined in atlas/chunk_vector_index.json.
+      # Add alternatives only after creating a matching vector index in Atlas (see README).
+      # - id: voyage-4-large
+      #   label: voyage-4-large, full precision
+      #   index-name: chunk_vector_index_large
+      #   embedding-model: voyage-4-large
+      #   quantization: none
+      #   requires-reindex: true
+      #   requires-reembedding: true
+      #   description: Higher accuracy, higher embedding cost. Requires re-embedding every chunk.
+
+logging:
+  level:
+    com.example.research: INFO

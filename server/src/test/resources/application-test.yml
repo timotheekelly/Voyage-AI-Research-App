@@ -1,0 +1,11 @@
+# Test settings: dev auth, no real external services. Mongo comes from Testcontainers.
+spring:
+  ai:
+    openai:
+      api-key: test-key-not-used
+app:
+  security:
+    mode: dev
+  ingestion:
+    storage-dir: ${java.io.tmpdir}/research-intelligence-tests
+    readiness-poll-interval: 1h

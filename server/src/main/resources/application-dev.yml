@@ -1,0 +1,7 @@
+# Local development: seeded test user, no JWT issuer needed. NEVER use in production.
+app:
+  security:
+    mode: dev
+    dev-user-id: user-001
+  seed:
+    enabled: true

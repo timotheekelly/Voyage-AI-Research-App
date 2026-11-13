@@ -1,0 +1,15 @@
+{
+  "name": "chunk_vector_index",
+  "type": "vectorSearch",
+  "definition": {
+    "fields": [
+      { "type": "autoEmbed", "modality": "text", "path": "content", "model": "voyage-4" },
+      { "type": "filter", "path": "ready" },
+      { "type": "filter", "path": "workspaceId" },
+      { "type": "filter", "path": "documentId" },
+      { "type": "filter", "path": "documentType" },
+      { "type": "filter", "path": "publicationYear" },
+      { "type": "filter", "path": "tags" }
+    ]
+  }
+}

@@ -1,0 +1,5 @@
+# Production profile: machine-readable (ECS JSON) logs. Combine with app.security.mode=jwt (the default).
+logging:
+  structured:
+    format:
+      console: ecs

@@ -1,0 +1,218 @@
+### Research Intelligence API: example requests for all five versions.
+### Works with the JetBrains HTTP client and the VS Code "REST Client" extension.
+### Start the server in dev mode first:  SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run
+### Dev mode authenticates every request as the seeded user "user-001" (no Authorization header needed).
+### In production (JWT mode) add:  Authorization: Bearer <token>
+
+@host = http://localhost:8080
+@workspace = workspace-001
+
+### ------------------------------------------------------------------ shared endpoints (identical in v1-v5)
+
+### List workspaces (the seeded dev user sees workspace-001 only; workspace-002 belongs to someone else)
+GET {{host}}/api/v1/workspaces
+
+### Create a workspace
+POST {{host}}/api/v4/workspaces
+Content-Type: application/json
+
+{ "name": "Climate Research", "description": "Papers on climate science" }
+
+### Get a workspace / its documents
+GET {{host}}/api/v1/workspaces/{{workspace}}
+
+###
+GET {{host}}/api/v4/workspaces/{{workspace}}/documents
+
+### Upload a document (PDF, .txt or .md). Returns 201 with processingStatus PROCESSING; it becomes READY
+### only after Atlas has embedded every chunk. Poll GET /documents/{id}.
+POST {{host}}/api/v1/documents
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="workspaceId"
+
+{{workspace}}
+--boundary
+Content-Disposition: form-data; name="author"
+
+Research Institute
+--boundary
+Content-Disposition: form-data; name="publicationYear"
+
+2024
+--boundary
+Content-Disposition: form-data; name="documentType"
+
+academic-paper
+--boundary
+Content-Disposition: form-data; name="tags"
+
+energy,nuclear
+--boundary
+Content-Disposition: form-data; name="file"; filename="nuclear-energy.txt"
+Content-Type: text/plain
+
+Nuclear energy provides low-carbon baseload power. The AP1000 is a pressurized water reactor with passive safety systems.
+--boundary--
+
+### List documents (optionally scoped)
+GET {{host}}/api/v1/documents?workspaceId={{workspace}}
+
+### One document
+GET {{host}}/api/v1/documents/document-REPLACE-ME
+
+### Delete a document (409 while it is still PROCESSING)
+DELETE {{host}}/api/v1/documents/document-REPLACE-ME
+
+### Conversations
+GET {{host}}/api/v1/conversations?workspaceId={{workspace}}
+
+###
+POST {{host}}/api/v1/conversations
+Content-Type: application/json
+
+{ "workspaceId": "{{workspace}}", "title": "Nuclear energy" }
+
+###
+GET {{host}}/api/v1/conversations/conversation-REPLACE-ME
+
+###
+DELETE {{host}}/api/v1/conversations/conversation-REPLACE-ME
+
+### ------------------------------------------------------------------ V1: vector search + cited answers
+
+POST {{host}}/api/v1/chat
+Content-Type: application/json
+
+{
+  "question": "What are the main findings about nuclear energy?",
+  "workspaceId": "{{workspace}}"
+}
+
+### V1 rejects settings it does not support (400 MALFORMED_REQUEST)
+POST {{host}}/api/v1/chat
+Content-Type: application/json
+
+{ "question": "q", "workspaceId": "{{workspace}}", "retrievalStrategy": "hybrid" }
+
+### ------------------------------------------------------------------ V2: vector | text | hybrid ($rankFusion)
+
+POST {{host}}/api/v2/chat
+Content-Type: application/json
+
+{
+  "question": "Find papers discussing reactor AP1000",
+  "workspaceId": "{{workspace}}",
+  "retrievalStrategy": "hybrid"
+}
+
+### Exact-term lexical search only
+POST {{host}}/api/v2/chat
+Content-Type: application/json
+
+{ "question": "AP1000", "workspaceId": "{{workspace}}", "retrievalStrategy": "text" }
+
+### Semantic only, for comparison
+POST {{host}}/api/v2/chat
+Content-Type: application/json
+
+{ "question": "AP1000", "workspaceId": "{{workspace}}", "retrievalStrategy": "vector" }
+
+### ------------------------------------------------------------------ V3: native $rerank
+
+POST {{host}}/api/v3/chat
+Content-Type: application/json
+
+{
+  "question": "Compare the conclusions of these studies",
+  "workspaceId": "{{workspace}}",
+  "retrievalStrategy": "hybrid",
+  "reranking": { "enabled": true, "candidateCount": 30, "finalResultCount": 5 }
+}
+
+### 400: finalResultCount cannot exceed candidateCount
+POST {{host}}/api/v3/chat
+Content-Type: application/json
+
+{
+  "question": "q",
+  "workspaceId": "{{workspace}}",
+  "reranking": { "enabled": true, "candidateCount": 5, "finalResultCount": 10 }
+}
+
+### ------------------------------------------------------------------ V4: tenant scoping + metadata filters
+
+### Filter values that exist in your workspaces
+GET {{host}}/api/v4/retrieval/options
+
+###
+POST {{host}}/api/v4/chat
+Content-Type: application/json
+
+{
+  "question": "Find recent research about nuclear energy",
+  "workspaceId": "{{workspace}}",
+  "retrievalStrategy": "hybrid",
+  "reranking": { "enabled": true, "candidateCount": 30, "finalResultCount": 5 },
+  "filters": {
+    "publicationYear": { "min": 2020, "max": 2026 },
+    "documentTypes": ["academic-paper"],
+    "tags": ["energy"]
+  }
+}
+
+### workspaceId omitted: searches every workspace you belong to (never anyone else's)
+POST {{host}}/api/v4/chat
+Content-Type: application/json
+
+{ "question": "Summarize my documents" }
+
+### 403: workspace-002 belongs to another user (enforced in every version)
+POST {{host}}/api/v1/chat
+Content-Type: application/json
+
+{ "question": "q", "workspaceId": "workspace-002" }
+
+### ------------------------------------------------------------------ V5: configuration, diagnostics, evaluation
+
+### Supported retrieval configurations and whether their Atlas indexes are queryable
+GET {{host}}/api/v5/retrieval/configurations
+
+###
+POST {{host}}/api/v5/chat
+Content-Type: application/json
+
+{
+  "question": "Compare the conclusions of these studies",
+  "workspaceId": "{{workspace}}",
+  "retrievalStrategy": "hybrid",
+  "reranking": { "enabled": true, "candidateCount": 30, "finalResultCount": 5 },
+  "filters": {},
+  "optimization": {
+    "embeddingConfiguration": "default",
+    "quantization": "none",
+    "diagnosticsEnabled": true
+  }
+}
+
+### Start an offline evaluation (returns 202; runs in the background). Replace the ids with real ones.
+POST {{host}}/api/v5/evaluations
+Content-Type: application/json
+
+{
+  "name": "hybrid + rerank baseline",
+  "workspaceId": "{{workspace}}",
+  "retrievalStrategy": "hybrid",
+  "reranking": { "enabled": true, "candidateCount": 30, "finalResultCount": 5 },
+  "cases": [
+    { "question": "What reactor designs use passive safety?", "expectedDocumentIds": ["document-REPLACE-ME"] },
+    { "question": "AP1000 cooling", "expectedChunkIds": ["document-REPLACE-ME-chunk-0"] }
+  ]
+}
+
+###
+GET {{host}}/api/v5/evaluations
+
+###
+GET {{host}}/api/v5/evaluations/evaluation-REPLACE-ME
