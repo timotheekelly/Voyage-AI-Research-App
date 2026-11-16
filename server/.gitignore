@@ -3,3 +3,4 @@ data/
 .env
 *.iml
 .idea/
+server.log
